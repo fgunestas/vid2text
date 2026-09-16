@@ -227,7 +227,7 @@ def process_video(
             log(f"  onceki calistirmadan devam: {fmt_time(last_end)} / {fmt_time(duration)}")
             clip_timestamps = f"{last_end},{duration}"
         else:
-            clip_timestamps = None
+            clip_timestamps = "0"
 
         segments, info = model.transcribe(
             str(wav_path),

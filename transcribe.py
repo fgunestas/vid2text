@@ -26,6 +26,14 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 
+# Konsol kod sayfasi (ornegin Turkce Windows'ta cp1254) dosya adlarindaki
+# Korece/emoji gibi karakterleri veya ffmpeg ciktisini cozemeyip
+# UnicodeDecodeError ile thread'i patlatmasin diye stdout/stderr'i UTF-8'e zorla.
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 VIDEO_EXTS = {
     ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv",
     ".m4v", ".webm", ".ts", ".mts", ".m2ts",
@@ -142,7 +150,9 @@ def extract_audio(ffmpeg_exe: str, video_path: Path, wav_path: Path) -> None:
         "-acodec", "pcm_s16le",
         str(wav_path),
     ]
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = subprocess.run(
+        cmd, capture_output=True, text=True, encoding="utf-8", errors="replace"
+    )
     if proc.returncode != 0 or not wav_path.exists():
         raise RuntimeError(f"ffmpeg ses cikartma hatasi:\n{proc.stderr[-2000:]}")
 
@@ -205,9 +215,11 @@ def process_video(
     if state.data.get("audio_path") and Path(state.data["audio_path"]).exists():
         wav_path = Path(state.data["audio_path"])
     elif not wav_path.exists():
-        log(f"  ses cikartiliyor (ffmpeg) -> {wav_path.name}")
+        log(f"  ses cikartiliyor (ffmpeg) -> {wav_path.name} ...")
+        t_extract0 = time.time()
         ffmpeg_exe = get_ffmpeg_exe()
         extract_audio(ffmpeg_exe, video_path, wav_path)
+        log(f"  ses cikarma tamamlandi ({fmt_time(time.time() - t_extract0)})")
 
     duration = state.data.get("duration_sec")
     if not duration:
@@ -242,6 +254,7 @@ def process_video(
 
         t0 = time.time()
         n_seg = 0
+        last_heartbeat = t0
         try:
             for seg in segments:
                 state.append_segment(seg.start, seg.end, seg.text)
@@ -253,6 +266,11 @@ def process_video(
                     f"(%{pct:5.1f})  gecen sure: {fmt_time(elapsed)}   "
                 )
                 sys.stdout.flush()
+                now = time.time()
+                if now - last_heartbeat >= 10:
+                    log(f"  ilerleme: {fmt_time(seg.end)}/{fmt_time(duration)} "
+                        f"(%{pct:5.1f})  gecen sure: {fmt_time(elapsed)}")
+                    last_heartbeat = now
                 if n_seg % 20 == 0:
                     state.data["status"] = "transcribing"
                     state.save()
@@ -310,8 +328,9 @@ def main() -> None:
     for v in videos:
         log(f"  - {v.relative_to(input_dir)}")
 
+    t_model0 = time.time()
     model, dev, ctype = load_model(args.model, args.device, args.compute_type)
-    log(f"Model hazir (device={dev}, compute_type={ctype}).")
+    log(f"Model hazir (device={dev}, compute_type={ctype}) - yuklenme suresi: {fmt_time(time.time() - t_model0)}.")
 
     try:
         for video_path in videos:

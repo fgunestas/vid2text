@@ -11,7 +11,11 @@ Windows + RTX 5060 icin: FFmpeg -> (faster-whisper icine gomulu Silero VAD) -> F
    ```
    Python 3.10+ zaten kurulu oldugu varsayilir. Venv olusturulur, `faster-whisper` ve `imageio-ffmpeg` (icinde hazir ffmpeg ile gelir, ayrica ffmpeg kurmana gerek yok) kurulur.
 
-## Kullanim
+## Kullanim (en pratik yol)
+
+`Videolari_Metne_Cevir.bat` dosyasinin uzerine, videolarin oldugu klasoru (veya birden fazla klasoru) suruklebiraktir. Ilk seferde kurulumu (`setup.ps1`) kendisi yapar, sonra videolari isler. Bittiginde pencere acik kalir, kapatmak icin bir tusa bas.
+
+## Kullanim (komut satiri)
 
 ```
 .\run.ps1 -InputDir "D:\Videolar"

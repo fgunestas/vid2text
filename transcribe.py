@@ -18,6 +18,7 @@ Kaldigi yerden devam etme (resume):
 
 import argparse
 import json
+import os
 import sys
 import time
 import wave
@@ -162,7 +163,49 @@ def wav_duration_sec(wav_path: Path) -> float:
         return w.getnframes() / float(w.getframerate())
 
 
+def add_cuda_dll_dirs() -> None:
+    """Windows'ta Python 3.8+ artik DLL bagimliliklarini PATH uzerinden otomatik
+    aramiyor. CUDA Toolkit kurulu olsa ve PATH'te olsa bile ctranslate2 cublas/
+    cudnn DLL'lerini bulamayabiliyor. PATH ve CUDA_PATH icindeki cublas/cudnn
+    barindiran klasorleri os.add_dll_directory ile aciktan ekleyerek bu sorunu
+    onceden (model yuklenmeden) cozuyoruz."""
+    if sys.platform != "win32" or not hasattr(os, "add_dll_directory"):
+        return
+    candidates = []
+    cuda_path = os.environ.get("CUDA_PATH")
+    if cuda_path:
+        candidates.append(Path(cuda_path) / "bin")
+    for p in os.environ.get("PATH", "").split(os.pathsep):
+        if p:
+            candidates.append(Path(p))
+
+    added = set()
+    for d in candidates:
+        try:
+            if not d.is_dir() or d in added:
+                continue
+            if any(d.glob("cublas*.dll")) or any(d.glob("cudnn*.dll")):
+                os.add_dll_directory(str(d))
+                added.add(d)
+        except OSError:
+            pass
+
+
+def _cuda_smoke_test(model) -> None:
+    """Ctranslate2, CUDA/cuBLAS kutuphanelerini model yuklenirken degil ilk
+    gercek transkripsiyon cagrisinda (lazy) yukler. Bu yuzden bozuk bir CUDA
+    kurulumu, model basariyla 'yuklendi' dendikten SONRA, ilk video islenirken
+    ortaya cikip o videoyu HATA olarak atlatabiliyor. Burada 1 saniyelik
+    sessizlik ile gercek bir cikarim yaptirip CUDA hatasini erkenden
+    (fallback mantigi hala devredeyken) yakaliyoruz."""
+    import numpy as np
+    silence = np.zeros(16000, dtype=np.float32)
+    segments, _ = model.transcribe(silence, language="en", vad_filter=False)
+    list(segments)
+
+
 def load_model(model_name: str, device: str, compute_type: str):
+    add_cuda_dll_dirs()
     from faster_whisper import WhisperModel
 
     attempts = []
@@ -180,6 +223,8 @@ def load_model(model_name: str, device: str, compute_type: str):
         try:
             log(f"Model yukleniyor: {model_name} (device={dev}, compute_type={ctype})")
             model = WhisperModel(model_name, device=dev, compute_type=ctype)
+            if dev == "cuda":
+                _cuda_smoke_test(model)
             if dev == "cpu" and device == "cuda":
                 log("UYARI: CUDA baslatilamadi, CPU'ya dusuldu. Transkripsiyon COK daha "
                     "yavas olacak. NVIDIA surucusunu guncelleyip tekrar dene "

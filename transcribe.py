@@ -210,7 +210,12 @@ def load_model(model_name: str, device: str, compute_type: str):
 
     attempts = []
     if device == "cuda":
+        # int8_float16 bazi GPU/cuBLAS surumu kombinasyonlarinda
+        # CUBLAS_STATUS_NOT_SUPPORTED verebiliyor; float16 ve int8 daha genis
+        # destege sahip oldugundan sirayla yedek olarak deneniyor.
         attempts.append(("cuda", compute_type))
+        attempts.append(("cuda", "float16"))
+        attempts.append(("cuda", "int8_float16"))
         attempts.append(("cuda", "int8"))
     attempts.append(("cpu", "int8"))
 

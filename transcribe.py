@@ -36,7 +36,7 @@ if hasattr(sys.stderr, "reconfigure"):
 
 VIDEO_EXTS = {
     ".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv",
-    ".m4v", ".webm", ".ts", ".mts", ".m2ts",
+    ".m4v", ".webm", ".ts", ".mts", ".m2ts", ".mpg", ".mpeg",
 }
 
 
